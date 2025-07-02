@@ -1,6 +1,9 @@
 import 'dotenv/config';
 import { ChatGoogleGenerativeAI } from '@langchain/google-genai';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
+import { tool } from "@langchain/core/tools";
+import { z } from "zod";
+
 
 if (!process.env.GOOGLE_API_KEY) {
   throw new Error('GOOGLE_API_KEY is not set in your environment variables.');
@@ -12,22 +15,34 @@ const model = new ChatGoogleGenerativeAI({
   temperature: 0.7,
 });
 
-const systemTemplate = 'You are a trivia bot. Provide a fun fact or trivia question about the topic: {topic}';
+const multiply = tool(
+  ({ a, b }) => {
+    /**
+     * Multiply two numbers.
+     */
+    return a * b;
+  },
+  {
+    name: "multiply",
+    description: "Multiply two numbers",
+    schema: z.object({
+      a: z.number(),
+      b: z.number(),
+    }),
+  }
+);
+const modelWithTools = model.bindTools([multiply]);
 
-const promptTemplate = ChatPromptTemplate.fromMessages([
-  ['system', systemTemplate],
-  ['user', 'Please share a fun fact or trivia question.'],
-]);
+// Run tool in a conversation
+const run = async () => {
+  console.log("=== Example: Multiply Tool with Gemini ===");
 
-async function run() {
-  const topic = 'space exploration';
+  const response = await modelWithTools.invoke([
+    new HumanMessage("What is 15 multiplied by 23?")
+  ]);
 
-  const promptValue = await promptTemplate.invoke({ topic });
-
-  const response = await model.invoke(promptValue);
-
-  console.log(`Trivia about ${topic}:`);
-  console.log(response.content);
-}
+  console.log("AI Response:", response.content);
+  console.log("Tool Calls:", response.tool_calls);
+};
 
 run();
